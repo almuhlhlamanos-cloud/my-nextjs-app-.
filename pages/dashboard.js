@@ -1,99 +1,179 @@
 import { useState } from 'react'
 import { createClient } from '@supabase/supabase-js'
 
-const supabaseUrl = 'https://YOUR_SUPABASE_URL.supabase.co'
-const supabaseAnonKey = 'YOUR_SUPABASE_ANON_KEY'
+const supabaseUrl = 'https://tcsfftfqckossmpjshib.supabase.co'
+const supabaseAnonKey = 'ضع_مفتاح_ANON_هنا' // استبدل هذا بـ anon key الخاص بك
 const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
-export default function Dashboard() {
+export default function UserHome() {
   const [fullName, setFullName] = useState('')
-  const [file, setFile] = useState(null)
-  const [uploading, setUploading] = useState(false)
-  const [message, setMessage] = useState('')
+  const [idNumber, setIdNumber] = useState('')
+  const [frontImage, setFrontImage] = useState(null)
+  const [backImage, setBackImage] = useState(null)
 
-  const handleKYCSubmit = async (e) => {
+  const [depositAmount, setDepositAmount] = useState('')
+  const [kycMsg, setKycMsg] = useState('')
+  const [depMsg, setDepMsg] = useState('')
+  const [loadingKyc, setLoadingKyc] = useState(false)
+  const [loadingDep, setLoadingDep] = useState(false)
+
+  // دالة لرفع الصور مع تغيير الاسم لاسم إنجليزي آمن
+  const uploadImage = async (file) => {
+    const fileExt = file.name.split('.').pop()
+    const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${fileExt}`
+    const filePath = `kyc/${fileName}`
+
+    const { error } = await supabase.storage
+      .from('kyc-images')
+      .upload(filePath, file)
+
+    if (error) throw error
+
+    const { data } = supabase.storage
+      .from('kyc-images')
+      .getPublicUrl(filePath)
+
+    return data.publicUrl
+  }
+
+  // تقديم طلب التوثيق
+  const handleKycSubmit = async (e) => {
     e.preventDefault()
-    if (!file || !fullName) {
-      setMessage('يرجى إدخال الاسم الكامل وإرفاق صورة الهوية')
+    if (!frontImage || !backImage) {
+      setKycMsg('يرجى اختيار صوَر الهوية الوجهين الأمامي والخلفي')
       return
     }
 
+    setLoadingKyc(true)
+    setKycMsg('')
+
     try {
-      setUploading(true)
-      setMessage('')
+      const frontUrl = await uploadImage(frontImage)
+      const backUrl = await uploadImage(backImage)
 
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        setMessage('يرجى تسجيل الدخول أولاً')
-        return
-      }
+      const { error } = await supabase
+        .from('kyc_submissions')
+        .insert([{ 
+          full_name: fullName, 
+          id_number: idNumber, 
+          front_image_url: frontUrl, 
+          back_image_url: backUrl,
+          status: 'pending'
+        }])
 
-      const fileExt = file.name.split('.').pop()
-      const fileName = `${user.id}-${Date.now()}.${fileExt}`
-      const filePath = `${fileName}`
+      if (error) throw error
 
-      const { error: uploadError } = await supabase.storage
-        .from('id-cards')
-        .upload(filePath, file)
-
-      if (uploadError) throw uploadError
-
-      const { data: { publicUrl } } = supabase.storage
-        .from('id-cards')
-        .getPublicUrl(filePath)
-
-      const { error: updateError } = await supabase
-        .from('users')
-        .update({
-          full_name: fullName,
-          id_card_url: publicUrl,
-          verification_status: 'pending'
-        })
-        .eq('id', user.id)
-
-      if (updateError) throw updateError
-
-      setMessage('تم تقديم طلب التوثيق بنجاح! بانتظار مراجعة الإدارة.')
-    } catch (error) {
-      setMessage(`حدث خطأ: ${error.message}`)
+      setKycMsg('✅ تم إرسال طلب التوثيق بنجاح! سيتم مراجعته قريبًا.')
+      setFullName('')
+      setIdNumber('')
+      setFrontImage(null)
+      setBackImage(null)
+    } catch (err) {
+      setKycMsg('حدث خطأ في الرفع: ' + (err.message || 'يرجى المحاولة لاحقاً'))
     } finally {
-      setUploading(false)
+      setLoadingKyc(false)
+    }
+  }
+
+  // تقديم طلب الإيداع
+  const handleDepositSubmit = async (e) => {
+    e.preventDefault()
+    if (!depositAmount || Number(depositAmount) <= 0) {
+      setDepMsg('يرجى تحديد مبلغ إيداع صحيح')
+      return
+    }
+
+    setLoadingDep(true)
+    setDepMsg('')
+
+    try {
+      const { error } = await supabase
+        .from('deposits')
+        .insert([{ 
+          amount: Number(depositAmount), 
+          wallet_address: '0x94828a2a074c5dce7d110f019f958ee0420dfbc6',
+          status: 'pending'
+        }])
+
+      if (error) throw error
+
+      setDepMsg('✅ تم تسجيل طلب الإيداع بنجاح! يرجى إتمام التحويل للمحفظة.')
+      setDepositAmount('')
+    } catch (err) {
+      setDepMsg('حدث خطأ أثناء الإيداع: ' + err.message)
+    } finally {
+      setLoadingDep(false)
     }
   }
 
   return (
-    <div style={{ padding: '20px', maxWidth: '500px', margin: '0 auto', fontFamily: 'sans-serif', direction: 'rtl' }}>
-      <h2>توثيق الحساب (KYC)</h2>
-      <form onSubmit={handleKYCSubmit}>
-        <div style={{ marginBottom: '15px' }}>
-          <label>الاسم الكامل:</label>
-          <input
-            type="text"
-            value={fullName}
-            onChange={(e) => setFullName(e.target.value)}
-            style={{ width: '100%', padding: '8px', marginTop: '5px' }}
-            required
-          />
-        </div>
-        <div style={{ marginBottom: '15px' }}>
-          <label>صورة الهوية / الباسبور:</label>
-          <input
-            type="file"
-            accept="image/*"
-            onChange={(e) => setFile(e.target.files[0])}
-            style={{ width: '100%', marginTop: '5px' }}
-            required
-          />
-        </div>
-        <button
-          type="submit"
-          disabled={uploading}
-          style={{ width: '100%', padding: '10px', backgroundColor: '#0070f3', color: '#fff', border: 'none', borderRadius: '5px' }}
-        >
-          {uploading ? 'جاري الرفع...' : 'إرسال لطلب التوثيق'}
-        </button>
-      </form>
-      {message && <p style={{ marginTop: '15px', color: message.includes('نجاح') ? 'green' : 'red' }}>{message}</p>}
+    <div style={{ backgroundColor: '#0a0a0a', color: '#fff', minHeight: '100vh', padding: '20px 15px', direction: 'rtl', fontFamily: 'sans-serif' }}>
+      
+      {/* الهيدر */}
+      <header style={{ textAlign: 'center', borderBottom: '2px solid #d4af37', paddingBottom: '15px', marginBottom: '25px' }}>
+        <h1 style={{ color: '#d4af37', margin: 0, fontSize: '26px' }}>👑 منصة الملك للتداول</h1>
+        <p style={{ color: '#888', fontSize: '13px', marginTop: '5px' }}>منصة التداول الآمنة والاستثمار الذهبي</p>
+      </header>
+
+      <div style={{ maxWidth: '500px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '30px' }}>
+        
+        {/* قسم التوثيق KYC */}
+        <section style={{ backgroundColor: '#161616', border: '1px solid #d4af37', borderRadius: '12px', padding: '20px' }}>
+          <h2 style={{ color: '#d4af37', fontSize: '18px', marginTop: 0, marginBottom: '15px', textAlign: 'center' }}>🆔 توثيق الهوية (KYC)</h2>
+          
+          <form onSubmit={handleKycSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div>
+              <label style={{ fontSize: '13px', display: 'block', marginBottom: '5px' }}>الاسم الثلاثي:</label>
+              <input type="text" value={fullName} onChange={e => setFullName(e.target.value)} required style={{ width: '100%', padding: '10px', backgroundColor: '#000', border: '1px solid #333', color: '#fff', borderRadius: '6px', boxSizing: 'border-box' }} />
+            </div>
+
+            <div>
+              <label style={{ fontSize: '13px', display: 'block', marginBottom: '5px' }}>رقم الهوية / التعريف:</label>
+              <input type="text" value={idNumber} onChange={e => setIdNumber(e.target.value)} required style={{ width: '100%', padding: '10px', backgroundColor: '#000', border: '1px solid #333', color: '#fff', borderRadius: '6px', boxSizing: 'border-box' }} />
+            </div>
+
+            <div>
+              <label style={{ fontSize: '13px', display: 'block', marginBottom: '5px' }}>صورة الهوية (الوجه الأمامي):</label>
+              <input type="file" accept="image/*" onChange={e => setFrontImage(e.target.files[0])} required style={{ width: '100%', color: '#aaa' }} />
+            </div>
+
+            <div>
+              <label style={{ fontSize: '13px', display: 'block', marginBottom: '5px' }}>صورة الهوية (الوجه الخلفي):</label>
+              <input type="file" accept="image/*" onChange={e => setBackImage(e.target.files[0])} required style={{ width: '100%', color: '#aaa' }} />
+            </div>
+
+            {kycMsg && <p style={{ color: kycMsg.includes('✅') ? '#22c55e' : '#ef4444', fontSize: '13px', textAlign: 'center', margin: '5px 0' }}>{kycMsg}</p>}
+
+            <button type="submit" disabled={loadingKyc} style={{ backgroundColor: '#d4af37', color: '#000', border: 'none', padding: '12px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', marginTop: '10px' }}>
+              {loadingKyc ? 'جاري رفع الصور والطلب...' : 'إرسال طلب التوثيق'}
+            </button>
+          </form>
+        </section>
+
+        {/* قسم الإيداع */}
+        <section style={{ backgroundColor: '#161616', border: '1px solid #d4af37', borderRadius: '12px', padding: '20px' }}>
+          <h2 style={{ color: '#d4af37', fontSize: '18px', marginTop: 0, marginBottom: '15px', textAlign: 'center' }}>💰 إيداع USDT (BEP20)</h2>
+          
+          <form onSubmit={handleDepositSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div>
+              <label style={{ fontSize: '13px', display: 'block', marginBottom: '5px' }}>حدد مبلغ الإيداع ($):</label>
+              <input type="number" value={depositAmount} onChange={e => setDepositAmount(e.target.value)} placeholder="مثال: 100" required style={{ width: '100%', padding: '10px', backgroundColor: '#000', border: '1px solid #333', color: '#fff', borderRadius: '6px', boxSizing: 'border-box' }} />
+            </div>
+
+            <div style={{ backgroundColor: '#0a0a0a', border: '1px dashed #d4af37', padding: '10px', borderRadius: '6px', fontSize: '12px' }}>
+              <p style={{ margin: '0 0 5px 0', color: '#d4af37', fontWeight: 'bold' }}>عنوان محفظة الإيداع (BEP20):</p>
+              <p style={{ margin: 0, wordBreak: 'break-all', color: '#aaa', fontFamily: 'monospace' }}>0x94828a2a074c5dce7d110f019f958ee0420dfbc6</p>
+            </div>
+
+            {depMsg && <p style={{ color: depMsg.includes('✅') ? '#22c55e' : '#ef4444', fontSize: '13px', textAlign: 'center', margin: '5px 0' }}>{depMsg}</p>}
+
+            <button type="submit" disabled={loadingDep} style={{ backgroundColor: '#22c55e', color: '#fff', border: 'none', padding: '12px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>
+              {loadingDep ? 'جاري التسجيل...' : 'تأكيد طلب الإيداع'}
+            </button>
+          </form>
+        </section>
+
+      </div>
     </div>
   )
-  }
+}
