@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@supabase/supabase-js'
 
 const supabaseUrl = 'https://tcsfftfqckossmpjshib.supabase.co'
-const supabaseAnonKey = 'YOUR_SUPABASE_ANON_KEY'
+const supabaseAnonKey = 'ضع_المفتاح_هنا'
 const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
 export default function AdminDashboard() {
@@ -61,4 +61,4 @@ export default function AdminDashboard() {
       )}
     </div>
   )
-    }
+}
