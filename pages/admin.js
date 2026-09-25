@@ -1,13 +1,12 @@
 import { useState, useEffect } from 'react'
-import { createClient } from 'supabase/supabase-js'
+import { createClient } from '@supabase/supabase-js'
 
-// ربط Supabase
 const supabaseUrl = 'https://tcsfftfqckossmpjshib.supabase.co'
-const supabaseAnonKey = 'const supabaseAnonKey = 'sb_publishable_-ouHCg''
+const supabaseAnonKey = 'sb_publishable_-ouHCg'
 const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
 export default function AdminDashboard() {
-  const [activeTab, setActiveTab] = useState('deposits') // deposits | kyc | users | withdrawals
+  const [activeTab, setActiveTab] = useState('deposits')
   const [deposits, setDeposits] = useState([])
   const [kycList, setKycList] = useState([])
   const [users, setUsers] = useState([])
@@ -20,39 +19,31 @@ export default function AdminDashboard() {
 
   const fetchAllData = async () => {
     setLoading(true)
-    
-    // 1. جلب الإيداعات
     const { data: depData } = await supabase.from('deposits').select('*').order('created_at', { ascending: false })
     if (depData) setDeposits(depData)
 
-    // 2. جلب التوثيقات
     const { data: kycData } = await supabase.from('kyc_submissions').select('*').order('created_at', { ascending: false })
     if (kycData) setKycList(kycData)
 
-    // 3. جلب تسجيلات المستخدمين (إذا كان يوجد جدول users)
     const { data: usersData } = await supabase.from('users').select('*').order('created_at', { ascending: false })
     if (usersData) setUsers(usersData)
 
-    // 4. جلب السحوبات
     const { data: withData } = await supabase.from('withdrawals').select('*').order('created_at', { ascending: false })
     if (withData) setWithdrawals(withData)
 
     setLoading(false)
   }
 
-  // تحديث حالة الإيداع
   const updateDepositStatus = async (id, status) => {
     const { error } = await supabase.from('deposits').update({ status }).eq('id', id)
     if (!error) setDeposits(deposits.map(item => item.id === id ? { ...item, status } : item))
   }
 
-  // تحديث حالة التوثيق
   const updateKycStatus = async (id, status) => {
     const { error } = await supabase.from('kyc_submissions').update({ status }).eq('id', id)
     if (!error) setKycList(kycList.map(item => item.id === id ? { ...item, status } : item))
   }
 
-  // تحديث حالة السحب
   const updateWithdrawalStatus = async (id, status) => {
     const { error } = await supabase.from('withdrawals').update({ status }).eq('id', id)
     if (!error) setWithdrawals(withdrawals.map(item => item.id === id ? { ...item, status } : item))
@@ -60,14 +51,11 @@ export default function AdminDashboard() {
 
   return (
     <div style={{ backgroundColor: '#0a0a0a', color: '#fff', minHeight: '100vh', padding: '20px', direction: 'rtl', fontFamily: 'sans-serif' }}>
-      
-      {/* الهيدر والعنوان الرئيسي */}
       <header style={{ textAlign: 'center', borderBottom: '2px solid #d4af37', paddingBottom: '15px', marginBottom: '20px' }}>
         <h1 style={{ color: '#d4af37', margin: 0, fontSize: '26px' }}>👑 لوحة التحكم الشاملة - الملك للتداول</h1>
         <p style={{ color: '#888', fontSize: '13px', margin: '5px 0 0 0' }}>متابعة فورية لعمليات الإيداع، التوثيق، المستخدمين، والسحوبات</p>
       </header>
 
-      {/* أزرار الأقسام للتبديل السريع */}
       <nav style={{ display: 'flex', justifyContent: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '25px' }}>
         <button onClick={() => setActiveTab('deposits')} style={{ padding: '10px 16px', backgroundColor: activeTab === 'deposits' ? '#d4af37' : '#161616', color: activeTab === 'deposits' ? '#000' : '#fff', border: '1px solid #d4af37', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>
           💰 عمليات الإيداع ({deposits.length})
@@ -87,8 +75,6 @@ export default function AdminDashboard() {
         <p style={{ textAlign: 'center', color: '#d4af37', fontSize: '16px' }}>جاري تحميل البيانات من Supabase...</p>
       ) : (
         <main style={{ maxWidth: '850px', margin: '0 auto' }}>
-
-          {/* 1. قسم عمليات الإيداع */}
           {activeTab === 'deposits' && (
             <div>
               <h3 style={{ color: '#d4af37', borderBottom: '1px solid #333', paddingBottom: '8px' }}>سجل عمليات الإيداع</h3>
@@ -113,7 +99,6 @@ export default function AdminDashboard() {
             </div>
           )}
 
-          {/* 2. قسم التوثيق KYC */}
           {activeTab === 'kyc' && (
             <div>
               <h3 style={{ color: '#d4af37', borderBottom: '1px solid #333', paddingBottom: '8px' }}>طلبات توثيق الهوية</h3>
@@ -158,7 +143,6 @@ export default function AdminDashboard() {
             </div>
           )}
 
-          {/* 3. قسم المستخدمين والتسجيلات */}
           {activeTab === 'users' && (
             <div>
               <h3 style={{ color: '#d4af37', borderBottom: '1px solid #333', paddingBottom: '8px' }}>تسجيلات الدخول والحسابات</h3>
@@ -178,7 +162,6 @@ export default function AdminDashboard() {
             </div>
           )}
 
-          {/* 4. قسم طلبات السحب */}
           {activeTab === 'withdrawals' && (
             <div>
               <h3 style={{ color: '#d4af37', borderBottom: '1px solid #333', paddingBottom: '8px' }}>طلبات سحب الأرباح</h3>
@@ -201,9 +184,8 @@ export default function AdminDashboard() {
               )}
             </div>
           )}
-
         </main>
       )}
     </div>
   )
-}
+                                     }
