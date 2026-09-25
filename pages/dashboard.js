@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { createClient } from '@supabase/supabase-js'
 
 const supabaseUrl = 'https://tcsfftfqckossmpjshib.supabase.co'
-const supabaseAnonKey = 'ضع_مفتاح_ANON_هنا' // استبدل هذا بـ anon key الخاص بك
+const supabaseAnonKey = 'sb_publishable_'
 const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
 export default function UserHome() {
