@@ -1,191 +1,160 @@
-import { useState, useEffect } from 'react'
+import { useState } from 'react'
 import { createClient } from '@supabase/supabase-js'
 
 const supabaseUrl = 'https://tcsfftfqckossmpjshib.supabase.co'
 const supabaseAnonKey = 'sb_publishable_-ouHCg'
 const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
-export default function AdminDashboard() {
-  const [activeTab, setActiveTab] = useState('deposits')
-  const [deposits, setDeposits] = useState([])
-  const [kycList, setKycList] = useState([])
-  const [users, setUsers] = useState([])
-  const [withdrawals, setWithdrawals] = useState([])
-  const [loading, setLoading] = useState(true)
+export default function UserHome() {
+  const [fullName, setFullName] = useState('')
+  const [idNumber, setIdNumber] = useState('')
+  const [frontImage, setFrontImage] = useState(null)
+  const [backImage, setBackImage] = useState(null)
 
-  useEffect(() => {
-    fetchAllData()
-  }, [])
+  const [depositAmount, setDepositAmount] = useState('')
+  const [kycMsg, setKycMsg] = useState('')
+  const [depMsg, setDepMsg] = useState('')
+  const [loadingKyc, setLoadingKyc] = useState(false)
+  const [loadingDep, setLoadingDep] = useState(false)
 
-  const fetchAllData = async () => {
-    setLoading(true)
-    const { data: depData } = await supabase.from('deposits').select('*').order('created_at', { ascending: false })
-    if (depData) setDeposits(depData)
+  const uploadImage = async (file) => {
+    const fileExt = file.name.split('.').pop()
+    const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${fileExt}`
+    const filePath = `kyc/${fileName}`
 
-    const { data: kycData } = await supabase.from('kyc_submissions').select('*').order('created_at', { ascending: false })
-    if (kycData) setKycList(kycData)
+    const { error } = await supabase.storage
+      .from('kyc-images')
+      .upload(filePath, file)
 
-    const { data: usersData } = await supabase.from('users').select('*').order('created_at', { ascending: false })
-    if (usersData) setUsers(usersData)
+    if (error) throw error
 
-    const { data: withData } = await supabase.from('withdrawals').select('*').order('created_at', { ascending: false })
-    if (withData) setWithdrawals(withData)
+    const { data } = supabase.storage
+      .from('kyc-images')
+      .getPublicUrl(filePath)
 
-    setLoading(false)
+    return data.publicUrl
   }
 
-  const updateDepositStatus = async (id, status) => {
-    const { error } = await supabase.from('deposits').update({ status }).eq('id', id)
-    if (!error) setDeposits(deposits.map(item => item.id === id ? { ...item, status } : item))
+  const handleKycSubmit = async (e) => {
+    e.preventDefault()
+    if (!frontImage || !backImage) {
+      setKycMsg('يرجى اختيار صوَر الهوية الوجهين الأمامي والخلفي')
+      return
+    }
+
+    setLoadingKyc(true)
+    setKycMsg('')
+
+    try {
+      const frontUrl = await uploadImage(frontImage)
+      const backUrl = await uploadImage(backImage)
+
+      const { error } = await supabase
+        .from('kyc_submissions')
+        .insert([{ 
+          full_name: fullName, 
+          id_number: idNumber, 
+          front_image_url: frontUrl, 
+          back_image_url: backUrl,
+          status: 'pending'
+        }])
+
+      if (error) throw error
+
+      setKycMsg('✅ تم إرسال طلب التوثيق بنجاح! سيتم مراجعته قريبًا.')
+      setFullName('')
+      setIdNumber('')
+      setFrontImage(null)
+      setBackImage(null)
+    } catch (err) {
+      setKycMsg('حدث خطأ في الرفع: ' + (err.message || 'يرجى المحاولة لاحقاً'))
+    } finally {
+      setLoadingKyc(false)
+    }
   }
 
-  const updateKycStatus = async (id, status) => {
-    const { error } = await supabase.from('kyc_submissions').update({ status }).eq('id', id)
-    if (!error) setKycList(kycList.map(item => item.id === id ? { ...item, status } : item))
-  }
+  const handleDepositSubmit = async (e) => {
+    e.preventDefault()
+    if (!depositAmount || Number(depositAmount) <= 0) {
+      setDepMsg('يرجى تحديد مبلغ إيداع صحيح')
+      return
+    }
 
-  const updateWithdrawalStatus = async (id, status) => {
-    const { error } = await supabase.from('withdrawals').update({ status }).eq('id', id)
-    if (!error) setWithdrawals(withdrawals.map(item => item.id === id ? { ...item, status } : item))
+    setLoadingDep(true)
+    setDepMsg('')
+
+    try {
+      const { error } = await supabase
+        .from('deposits')
+        .insert([{ 
+          amount: Number(depositAmount), 
+          wallet_address: '0x94828a2a074c5dce7d110f019f958ee0420dfbc6',
+          status: 'pending'
+        }])
+
+      if (error) throw error
+
+      setDepMsg('✅ تم تسجيل طلب الإيداع بنجاح! يرجى إتمام التحويل للمحفظة.')
+      setDepositAmount('')
+    } catch (err) {
+      setDepMsg('حدث خطأ أثناء الإيداع: ' + err.message)
+    } finally {
+      setLoadingDep(false)
+    }
   }
 
   return (
-    <div style={{ backgroundColor: '#0a0a0a', color: '#fff', minHeight: '100vh', padding: '20px', direction: 'rtl', fontFamily: 'sans-serif' }}>
-      <header style={{ textAlign: 'center', borderBottom: '2px solid #d4af37', paddingBottom: '15px', marginBottom: '20px' }}>
-        <h1 style={{ color: '#d4af37', margin: 0, fontSize: '26px' }}>👑 لوحة التحكم الشاملة - الملك للتداول</h1>
-        <p style={{ color: '#888', fontSize: '13px', margin: '5px 0 0 0' }}>متابعة فورية لعمليات الإيداع، التوثيق، المستخدمين، والسحوبات</p>
+    <div style={{ backgroundColor: '#0a0a0a', color: '#fff', minHeight: '100vh', padding: '20px 15px', direction: 'rtl', fontFamily: 'sans-serif' }}>
+      <header style={{ textAlign: 'center', borderBottom: '2px solid #d4af37', paddingBottom: '15px', marginBottom: '25px' }}>
+        <h1 style={{ color: '#d4af37', margin: 0, fontSize: '26px' }}>👑 منصة الملك للتداول</h1>
+        <p style={{ color: '#888', fontSize: '13px', marginTop: '5px' }}>منصة التداول الآمنة والاستثمار الذهبي</p>
       </header>
 
-      <nav style={{ display: 'flex', justifyContent: 'center', gap: '8px', flexWrap: 'wrap', marginBottom: '25px' }}>
-        <button onClick={() => setActiveTab('deposits')} style={{ padding: '10px 16px', backgroundColor: activeTab === 'deposits' ? '#d4af37' : '#161616', color: activeTab === 'deposits' ? '#000' : '#fff', border: '1px solid #d4af37', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>
-          💰 عمليات الإيداع ({deposits.length})
-        </button>
-        <button onClick={() => setActiveTab('kyc')} style={{ padding: '10px 16px', backgroundColor: activeTab === 'kyc' ? '#d4af37' : '#161616', color: activeTab === 'kyc' ? '#000' : '#fff', border: '1px solid #d4af37', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>
-          🆔 طلبات التوثيق ({kycList.length})
-        </button>
-        <button onClick={() => setActiveTab('users')} style={{ padding: '10px 16px', backgroundColor: activeTab === 'users' ? '#d4af37' : '#161616', color: activeTab === 'users' ? '#000' : '#fff', border: '1px solid #d4af37', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>
-          👤 المستخدمين ({users.length})
-        </button>
-        <button onClick={() => setActiveTab('withdrawals')} style={{ padding: '10px 16px', backgroundColor: activeTab === 'withdrawals' ? '#d4af37' : '#161616', color: activeTab === 'withdrawals' ? '#000' : '#fff', border: '1px solid #d4af37', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer' }}>
-          💸 طلبات السحب ({withdrawals.length})
-        </button>
-      </nav>
-
-      {loading ? (
-        <p style={{ textAlign: 'center', color: '#d4af37', fontSize: '16px' }}>جاري تحميل البيانات من Supabase...</p>
-      ) : (
-        <main style={{ maxWidth: '850px', margin: '0 auto' }}>
-          {activeTab === 'deposits' && (
+      <div style={{ maxWidth: '500px', margin: '0 auto', display: 'flex', flexDirection: 'column', gap: '30px' }}>
+        <section style={{ backgroundColor: '#161616', border: '1px solid #d4af37', borderRadius: '12px', padding: '20px' }}>
+          <h2 style={{ color: '#d4af37', fontSize: '18px', marginTop: 0, marginBottom: '15px', textAlign: 'center' }}>🆔 توثيق الهوية (KYC)</h2>
+          <form onSubmit={handleKycSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
             <div>
-              <h3 style={{ color: '#d4af37', borderBottom: '1px solid #333', paddingBottom: '8px' }}>سجل عمليات الإيداع</h3>
-              {deposits.length === 0 ? <p style={{ color: '#888', textAlign: 'center' }}>لا توجد عمليات إيداع حتى الآن.</p> : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginTop: '15px' }}>
-                  {deposits.map((item) => (
-                    <div key={item.id} style={{ backgroundColor: '#161616', border: '1px solid #d4af37', borderRadius: '10px', padding: '18px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
-                      <div>
-                        <p style={{ margin: '0 0 5px 0', fontSize: '20px', fontWeight: 'bold', color: '#22c55e' }}>المبلغ: ${item.amount}</p>
-                        <p style={{ margin: '0 0 5px 0', fontSize: '12px', color: '#aaa', fontFamily: 'monospace' }}>المحفظة: {item.wallet_address}</p>
-                        <p style={{ margin: '0 0 5px 0', fontSize: '12px', color: '#888' }}>التاريخ: {new Date(item.created_at).toLocaleString('ar-EG')}</p>
-                        <p style={{ margin: 0, fontSize: '13px' }}>الحالة: <span style={{ color: item.status === 'approved' ? '#22c55e' : item.status === 'rejected' ? '#ef4444' : '#eab308', fontWeight: 'bold' }}>{item.status}</span></p>
-                      </div>
-                      <div style={{ display: 'flex', gap: '8px' }}>
-                        <button onClick={() => updateDepositStatus(item.id, 'approved')} style={{ backgroundColor: '#22c55e', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>قبول 🟢</button>
-                        <button onClick={() => updateDepositStatus(item.id, 'rejected')} style={{ backgroundColor: '#ef4444', color: '#fff', border: 'none', padding: '8px 14px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>رفض 🔴</button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
+              <label style={{ fontSize: '13px', display: 'block', marginBottom: '5px' }}>الاسم الثلاثي:</label>
+              <input type="text" value={fullName} onChange={e => setFullName(e.target.value)} required style={{ width: '100%', padding: '10px', backgroundColor: '#000', border: '1px solid #333', color: '#fff', borderRadius: '6px', boxSizing: 'border-box' }} />
             </div>
-          )}
-
-          {activeTab === 'kyc' && (
             <div>
-              <h3 style={{ color: '#d4af37', borderBottom: '1px solid #333', paddingBottom: '8px' }}>طلبات توثيق الهوية</h3>
-              {kycList.length === 0 ? <p style={{ color: '#888', textAlign: 'center' }}>لا توجد طلبات توثيق حالياً.</p> : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '15px', marginTop: '15px' }}>
-                  {kycList.map((item) => (
-                    <div key={item.id} style={{ backgroundColor: '#161616', border: '1px solid #d4af37', borderRadius: '10px', padding: '18px' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
-                        <div>
-                          <p style={{ margin: '0 0 5px 0' }}><strong>الاسم الثلاثي:</strong> {item.full_name}</p>
-                          <p style={{ margin: '0 0 5px 0' }}><strong>رقم الهوية:</strong> {item.id_number}</p>
-                          <p style={{ margin: 0, fontSize: '12px', color: '#888' }}>تاريخ التقديم: {new Date(item.created_at).toLocaleString('ar-EG')}</p>
-                        </div>
-                        <div>
-                          <span style={{ color: item.status === 'approved' ? '#22c55e' : item.status === 'rejected' ? '#ef4444' : '#eab308', fontWeight: 'bold' }}>{item.status}</span>
-                        </div>
-                      </div>
-
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px', margin: '15px 0' }}>
-                        <div>
-                          <p style={{ color: '#d4af37', fontSize: '12px', margin: '0 0 5px 0' }}>صورة الهوية (الأمامية):</p>
-                          <a href={item.front_image_url} target="_blank" rel="noreferrer">
-                            <img src={item.front_image_url} alt="Front ID" style={{ width: '100%', height: '160px', objectFit: 'cover', borderRadius: '6px', border: '1px solid #333' }} />
-                          </a>
-                        </div>
-                        <div>
-                          <p style={{ color: '#d4af37', fontSize: '12px', margin: '0 0 5px 0' }}>صورة الهوية (الخلفية):</p>
-                          <a href={item.back_image_url} target="_blank" rel="noreferrer">
-                            <img src={item.back_image_url} alt="Back ID" style={{ width: '100%', height: '160px', objectFit: 'cover', borderRadius: '6px', border: '1px solid #333' }} />
-                          </a>
-                        </div>
-                      </div>
-
-                      <div style={{ display: 'flex', gap: '10px' }}>
-                        <button onClick={() => updateKycStatus(item.id, 'approved')} style={{ backgroundColor: '#22c55e', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', flex: 1 }}>موافقة وتأكيد 🟢</button>
-                        <button onClick={() => updateKycStatus(item.id, 'rejected')} style={{ backgroundColor: '#ef4444', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', flex: 1 }}>رفض 🔴</button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
+              <label style={{ fontSize: '13px', display: 'block', marginBottom: '5px' }}>رقم الهوية / التعريف:</label>
+              <input type="text" value={idNumber} onChange={e => setIdNumber(e.target.value)} required style={{ width: '100%', padding: '10px', backgroundColor: '#000', border: '1px solid #333', color: '#fff', borderRadius: '6px', boxSizing: 'border-box' }} />
             </div>
-          )}
-
-          {activeTab === 'users' && (
             <div>
-              <h3 style={{ color: '#d4af37', borderBottom: '1px solid #333', paddingBottom: '8px' }}>تسجيلات الدخول والحسابات</h3>
-              {users.length === 0 ? <p style={{ color: '#888', textAlign: 'center' }}>لا يوجد مستخدمين مسجلين حالياً.</p> : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px', marginTop: '15px' }}>
-                  {users.map((u) => (
-                    <div key={u.id} style={{ backgroundColor: '#161616', border: '1px solid #333', padding: '15px', borderRadius: '8px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <div>
-                        <p style={{ margin: '0 0 4px 0', fontWeight: 'bold' }}>{u.email || u.username || 'مستخدم جديد'}</p>
-                        <p style={{ margin: 0, fontSize: '12px', color: '#888' }}>تاريخ التسجيل: {new Date(u.created_at).toLocaleString('ar-EG')}</p>
-                      </div>
-                      <span style={{ fontSize: '12px', color: '#22c55e', backgroundColor: '#14532d', padding: '4px 10px', borderRadius: '4px' }}>نشط</span>
-                    </div>
-                  ))}
-                </div>
-              )}
+              <label style={{ fontSize: '13px', display: 'block', marginBottom: '5px' }}>صورة الهوية (الوجه الأمامي):</label>
+              <input type="file" accept="image/*" onChange={e => setFrontImage(e.target.files[0])} required style={{ width: '100%', color: '#aaa' }} />
             </div>
-          )}
-
-          {activeTab === 'withdrawals' && (
             <div>
-              <h3 style={{ color: '#d4af37', borderBottom: '1px solid #333', paddingBottom: '8px' }}>طلبات سحب الأرباح</h3>
-              {withdrawals.length === 0 ? <p style={{ color: '#888', textAlign: 'center' }}>لا توجد طلبات سحب حالياً.</p> : (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '15px' }}>
-                  {withdrawals.map((w) => (
-                    <div key={w.id} style={{ backgroundColor: '#161616', border: '1px solid #d4af37', borderRadius: '8px', padding: '15px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
-                      <div>
-                        <p style={{ margin: '0 0 4px 0', color: '#ef4444', fontWeight: 'bold', fontSize: '18px' }}>المبلغ: ${w.amount}</p>
-                        <p style={{ margin: '0 0 4px 0', fontSize: '12px', color: '#aaa', fontFamily: 'monospace' }}>إلى محفظة: {w.address}</p>
-                        <p style={{ margin: 0, fontSize: '12px' }}>الحالة: <span style={{ color: w.status === 'approved' ? '#22c55e' : w.status === 'rejected' ? '#ef4444' : '#eab308' }}>{w.status}</span></p>
-                      </div>
-                      <div style={{ display: 'flex', gap: '8px' }}>
-                        <button onClick={() => updateWithdrawalStatus(w.id, 'approved')} style={{ backgroundColor: '#22c55e', color: '#fff', border: 'none', padding: '8px 12px', borderRadius: '5px', fontWeight: 'bold', cursor: 'pointer' }}>موافقة 🟢</button>
-                        <button onClick={() => updateWithdrawalStatus(w.id, 'rejected')} style={{ backgroundColor: '#ef4444', color: '#fff', border: 'none', padding: '8px 12px', borderRadius: '5px', fontWeight: 'bold', cursor: 'pointer' }}>رفض 🔴</button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
+              <label style={{ fontSize: '13px', display: 'block', marginBottom: '5px' }}>صورة الهوية (الوجه الخلفي):</label>
+              <input type="file" accept="image/*" onChange={e => setBackImage(e.target.files[0])} required style={{ width: '100%', color: '#aaa' }} />
             </div>
-          )}
-        </main>
-      )}
+            {kycMsg && <p style={{ color: kycMsg.includes('✅') ? '#22c55e' : '#ef4444', fontSize: '13px', textAlign: 'center', margin: '5px 0' }}>{kycMsg}</p>}
+            <button type="submit" disabled={loadingKyc} style={{ backgroundColor: '#d4af37', color: '#000', border: 'none', padding: '12px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer', marginTop: '10px' }}>
+              {loadingKyc ? 'جاري رفع الصور والطلب...' : 'إرسال طلب التوثيق'}
+            </button>
+          </form>
+        </section>
+
+        <section style={{ backgroundColor: '#161616', border: '1px solid #d4af37', borderRadius: '12px', padding: '20px' }}>
+          <h2 style={{ color: '#d4af37', fontSize: '18px', marginTop: 0, marginBottom: '15px', textAlign: 'center' }}>💰 إيداع USDT (BEP20)</h2>
+          <form onSubmit={handleDepositSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div>
+              <label style={{ fontSize: '13px', display: 'block', marginBottom: '5px' }}>حدد مبلغ الإيداع ($):</label>
+              <input type="number" value={depositAmount} onChange={e => setDepositAmount(e.target.value)} placeholder="مثال: 100" required style={{ width: '100%', padding: '10px', backgroundColor: '#000', border: '1px solid #333', color: '#fff', borderRadius: '6px', boxSizing: 'border-box' }} />
+            </div>
+            <div style={{ backgroundColor: '#0a0a0a', border: '1px dashed #d4af37', padding: '10px', borderRadius: '6px', fontSize: '12px' }}>
+              <p style={{ margin: '0 0 5px 0', color: '#d4af37', fontWeight: 'bold' }}>عنوان محفظة الإيداع (BEP20):</p>
+              <p style={{ margin: 0, wordBreak: 'break-all', color: '#aaa', fontFamily: 'monospace' }}>0x94828a2a074c5dce7d110f019f958ee0420dfbc6</p>
+            </div>
+            {depMsg && <p style={{ color: depMsg.includes('✅') ? '#22c55e' : '#ef4444', fontSize: '13px', textAlign: 'center', margin: '5px 0' }}>{depMsg}</p>}
+            <button type="submit" disabled={loadingDep} style={{ backgroundColor: '#22c55e', color: '#fff', border: 'none', padding: '12px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>
+              {loadingDep ? 'جاري التسجيل...' : 'تأكيد طلب الإيداع'}
+            </button>
+          </form>
+        </section>
+      </div>
     </div>
   )
-      }
+    }
