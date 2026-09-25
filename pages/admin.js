@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@supabase/supabase-js'
 
-const supabaseUrl = 'https://YOUR_SUPABASE_URL.supabase.co'
+const supabaseUrl = 'https://tcsfftfqckossmpjshib.supabase.co'
 const supabaseAnonKey = 'YOUR_SUPABASE_ANON_KEY'
 const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
@@ -18,7 +18,6 @@ export default function AdminDashboard() {
     const { data, error } = await supabase
       .from('users')
       .select('*')
-      .eq('verification_status', 'pending')
 
     if (!error) setUsers(data || [])
     setLoading(false)
@@ -36,46 +35,29 @@ export default function AdminDashboard() {
   }
 
   return (
-    <div style={{ padding: '20px', maxWidth: '800px', margin: '0 auto', fontFamily: 'sans-serif', direction: 'rtl' }}>
+    <div style={{ padding: '20px', maxWidth: '800px', margin: '0 auto' }}>
       <h2>لوحة تحكم الأدمن - مراجعة الهويات</h2>
       {loading ? (
         <p>جاري تحميل الطلبات...</p>
       ) : users.length === 0 ? (
         <p>لا توجد طلبات توثيق معلقة حالياً.</p>
       ) : (
-        <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '20px' }}>
-          <thead>
-            <tr style={{ backgroundColor: '#f2f2f2', textAlign: 'right' }}>
-              <th style={{ padding: '10px', border: '1px solid #ddd' }}>الاسم الكامل</th>
-              <th style={{ padding: '10px', border: '1px solid #ddd' }}>صورة الهوية</th>
-              <th style={{ padding: '10px', border: '1px solid #ddd' }}>الإجراء</th>
-            </tr>
-          </thead>
-          <tbody>
-            {users.map((user) => (
-              <tr key={user.id}>
-                <td style={{ padding: '10px', border: '1px solid #ddd' }}>{user.full_name}</td>
-                <td style={{ padding: '10px', border: '1px solid #ddd' }}>
-                  <a href={user.id_card_url} target="_blank" rel="noreferrer">عرض الهوية</a>
-                </td>
-                <td style={{ padding: '10px', border: '1px solid #ddd' }}>
-                  <button
-                    onClick={() => handleDecision(user.id, 'verified')}
-                    style={{ marginLeft: '10px', padding: '5px 10px', backgroundColor: 'green', color: '#fff', border: 'none', borderRadius: '3px' }}
-                  >
-                    قبول
-                  </button>
-                  <button
-                    onClick={() => handleDecision(user.id, 'rejected')}
-                    style={{ padding: '5px 10px', backgroundColor: 'red', color: '#fff', border: 'none', borderRadius: '3px' }}
-                  >
-                    رفض
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div style={{ display: 'grid', gap: '15px' }}>
+          {users.map((user) => (
+            <div key={user.id} style={{ border: '1px solid #ccc', padding: '15px', borderRadius: '8px' }}>
+              <p><strong>اسم المستخدم:</strong> {user.full_name || user.name || 'بدون اسم'}</p>
+              {user.id_card_url && (
+                <div style={{ margin: '10px 0' }}>
+                  <img src={user.id_card_url} alt="ID Card" style={{ maxWidth: '100%', maxHeight: '300px', borderRadius: '5px' }} />
+                </div>
+              )}
+              <div style={{ marginTop: '10px', display: 'flex', gap: '10px' }}>
+                <button onClick={() => handleDecision(user.id, 'approved')} style={{ background: '#22c55e', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: '5px', cursor: 'pointer' }}>قبول</button>
+                <button onClick={() => handleDecision(user.id, 'rejected')} style={{ background: '#ef4444', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: '5px', cursor: 'pointer' }}>رفض</button>
+              </div>
+            </div>
+          ))}
+        </div>
       )}
     </div>
   )
