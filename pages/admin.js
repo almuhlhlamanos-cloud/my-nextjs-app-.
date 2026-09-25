@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js'
 
 // ربط Supabase
 const supabaseUrl = 'https://tcsfftfqckossmpjshib.supabase.co'
-const supabaseAnonKey = 'ضع_مفتاح_ANON_هنا'
+const supabaseAnonKey = ''
 const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
 export default function AdminDashboard() {
