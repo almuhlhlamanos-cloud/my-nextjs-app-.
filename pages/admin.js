@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { createClient } from '@supabase/supabase-js'
+import { createClient } from 'supabase/supabase-js'
 
 // ربط Supabase
 const supabaseUrl = 'https://tcsfftfqckossmpjshib.supabase.co'
